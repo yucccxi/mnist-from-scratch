@@ -125,7 +125,7 @@ Each parameter is updated using:
 parameter -= 0.005 * gradient
 ```
 
-By default, the program trains for 10 epochs. Each epoch processes all 60,000
+By default, the program trains for 8 epochs. Each epoch processes all 60,000
 training images and then reports average loss and accuracy on the 10,000-image
 test set.
 
