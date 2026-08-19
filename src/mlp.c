@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
 #include <time.h>
 
 #include "mlp.h"
@@ -111,6 +113,246 @@ void update_weights(MLP *mlp) {
             mlp->w2[k][j]->data -= lr * mlp->w2[k][j]->grad;
         }
     }
+}
+
+
+static const uint8_t magic[8] = {
+    'M', 'L', 'P', 'M', 'O', 'D', 'E', 'L'
+};
+
+static const uint32_t version = 1;
+
+bool save_model_to_file(const MLP *mlp, const char *path) {
+    FILE *fp = fopen(path, "wb");
+
+    if (fp == NULL) {
+        printf("[ERR] Cannot open: '%s'.\n", path);
+        return false;
+    }
+
+    // header
+    if (fwrite(magic, sizeof(magic), 1, fp) != 1) {
+        printf("[ERR] Failed to write model magic.\n");
+        fclose(fp);
+        return false;
+    }
+
+    if (fwrite(&version, sizeof(version), 1, fp) != 1) {
+        printf("[ERR] Failed to write model version.\n");
+        fclose(fp);
+        return false;
+    }
+
+    // W1
+    for (int j = 0; j < HIDDEN_SIZE; j++) {
+        for (int i = 0; i < INPUT_SIZE; i++) {
+            if (fwrite(
+                    &mlp->w1[j][i]->data,
+                    sizeof(float),
+                    1,
+                    fp
+                ) != 1) {
+                printf("[ERR] Failed to write W1.\n");
+                fclose(fp);
+                return false;
+            }
+        }
+    }
+
+    // B1
+    for (int j = 0; j < HIDDEN_SIZE; j++) {
+        if (fwrite(
+                &mlp->b1[j]->data,
+                sizeof(float),
+                1,
+                fp
+            ) != 1) {
+            printf("[ERR] Failed to write B1.\n");
+            fclose(fp);
+            return false;
+        }
+    }
+
+    // W2
+    for (int k = 0; k < OUTPUT_SIZE; k++) {
+        for (int j = 0; j < HIDDEN_SIZE; j++) {
+            if (fwrite(
+                    &mlp->w2[k][j]->data,
+                    sizeof(float),
+                    1,
+                    fp
+                ) != 1) {
+                printf("[ERR] Failed to write W2.\n");
+                fclose(fp);
+                return false;
+            }
+        }
+    }
+
+    // B2
+    for (int k = 0; k < OUTPUT_SIZE; k++) {
+        if (fwrite(
+                &mlp->b2[k]->data,
+                sizeof(float),
+                1,
+                fp
+            ) != 1) {
+            printf("[ERR] Failed to write B2.\n");
+            fclose(fp);
+            return false;
+        }
+    }
+
+    if (fclose(fp) != 0) {
+        printf("[ERR] Failed to close model file: '%s'.\n", path);
+        return false;
+    }
+
+    printf("[OK] Successfully saved model to: '%s'.\n", path);
+
+    return true;
+}
+
+
+bool load_model_from_file(MLP *mlp, const char *path) {
+    FILE *fp = fopen(path, "rb");
+
+    if (fp == NULL) {
+        printf("[ERR] Cannot open: '%s'.\n", path);
+        return false;
+    }
+
+    uint8_t fmagic[8];
+    uint32_t fversion;
+
+    // read header
+    if (fread(fmagic, sizeof(fmagic), 1, fp) != 1) {
+        printf("[ERR] Cannot read model magic from '%s'.\n", path);
+        fclose(fp);
+        return false;
+    }
+
+    if (fread(&fversion, sizeof(fversion), 1, fp) != 1) {
+        printf("[ERR] Cannot read model version from '%s'.\n", path);
+        fclose(fp);
+        return false;
+    }
+
+    if (memcmp(magic, fmagic, sizeof(magic)) != 0) {
+        printf(
+            "[ERR] Cannot load model from '%s': unsupported format.\n",
+            path
+        );
+        fclose(fp);
+        return false;
+    }
+
+    if (fversion != version) {
+        printf(
+            "[ERR] Unsupported file version: %u.\n",
+            fversion
+        );
+        fclose(fp);
+        return false;
+    }
+
+    size_t w1_count = (size_t)HIDDEN_SIZE * INPUT_SIZE;
+    size_t b1_count = (size_t)HIDDEN_SIZE;
+    size_t w2_count = (size_t)OUTPUT_SIZE * HIDDEN_SIZE;
+    size_t b2_count = (size_t)OUTPUT_SIZE;
+
+    // 4MB
+    float *buf = malloc(sizeof(float) * 1024 * 1024);
+
+    if (buf == NULL) {
+        printf("[ERR] Cannot allocate model loading buffer.\n");
+        fclose(fp);
+        return false;
+    }
+
+    // W1
+    if (fread(
+            buf,
+            sizeof(float),
+            w1_count,
+            fp
+        ) != w1_count) {
+        printf("[ERR] Cannot read W1 from '%s'.\n", path);
+        free(buf);
+        fclose(fp);
+        return false;
+    }
+
+    for (int j = 0; j < HIDDEN_SIZE; j++) {
+        for (int i = 0; i < INPUT_SIZE; i++) {
+            mlp->w1[j][i]->data =
+                buf[(size_t)j * INPUT_SIZE + i];
+        }
+    }
+
+    // B1
+    if (fread(
+            buf,
+            sizeof(float),
+            b1_count,
+            fp
+        ) != b1_count) {
+        printf("[ERR] Cannot read B1 from '%s'.\n", path);
+        free(buf);
+        fclose(fp);
+        return false;
+    }
+
+    for (int j = 0; j < HIDDEN_SIZE; j++) {
+        mlp->b1[j]->data = buf[j];
+    }
+
+    // W2
+    if (fread(
+            buf,
+            sizeof(float),
+            w2_count,
+            fp
+        ) != w2_count) {
+        printf("[ERR] Cannot read W2 from '%s'.\n", path);
+        free(buf);
+        fclose(fp);
+        return false;
+    }
+
+    for (int k = 0; k < OUTPUT_SIZE; k++) {
+        for (int j = 0; j < HIDDEN_SIZE; j++) {
+            mlp->w2[k][j]->data =
+                buf[(size_t)k * HIDDEN_SIZE + j];
+        }
+    }
+
+    // B2
+    if (fread(
+            buf,
+            sizeof(float),
+            b2_count,
+            fp
+        ) != b2_count) {
+        printf("[ERR] Cannot read B2 from '%s'.\n", path);
+        free(buf);
+        fclose(fp);
+        return false;
+    }
+
+    for (int k = 0; k < OUTPUT_SIZE; k++) {
+        mlp->b2[k]->data = buf[k];
+    }
+
+    free(buf);
+    fclose(fp);
+
+    printf(
+        "[OK] Successfully loaded model from: '%s'.\n",
+        path
+    );
+
+    return true;
 }
 
 void free_mlp(MLP *mlp) {

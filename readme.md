@@ -9,6 +9,7 @@ A neural network implementation from scratch in C.
 * Backpropagation
 * MLP implementation
 * MNIST handwritten digit classification
+* Model weight serialization to file
 
 ## Implementation Details
 
@@ -127,6 +128,68 @@ parameter -= 0.005 * gradient
 By default, the program trains for 10 epochs. Each epoch processes all 60,000
 training images and then reports average loss and accuracy on the 10,000-image
 test set.
+
+### Model weight serialization
+
+The MLP supports saving its trained parameters to a file. This allows the
+weights produced during training to be persisted instead of existing only for
+the lifetime of the process.
+
+The serialized model contains the trainable parameters of the network:
+
+* Input-to-hidden weights
+* Hidden-layer biases
+* Hidden-to-output weights
+* Output-layer biases
+
+Because the computation graph itself is reconstructed when the MLP is
+initialized, only the trainable parameter values need to be stored. Internal
+operation nodes and intermediate activations are not part of the saved model.
+
+The `./model` directory contains several pretrained models. The naming format is:
+
+```text
+MLP-epoch%02d-lr%f-t%lu.bin
+```
+
+where the fields represent the number of training epochs, the learning rate, and the Unix timestamp, respectively. Below is the training output log:
+
+```text
+Toposort finished. Node count: 204453
+Running epoch #1 ...
+[OK] 60000 images finished. Avg loss: 0.248510. Avg accuracy: 0.929083
+[OK] 10000 images finished. Avg loss: 0.150995. Avg accuracy: 0.956000
+[OK] Successfully saved model to: './model/MLP-epoch01-lr0.005000-t1787155610.bin'.
+Running epoch #2 ...
+[OK] 60000 images finished. Avg loss: 0.116388. Avg accuracy: 0.966067
+[OK] 10000 images finished. Avg loss: 0.110250. Avg accuracy: 0.966900
+[OK] Successfully saved model to: './model/MLP-epoch02-lr0.005000-t1787155744.bin'.
+Running epoch #3 ...
+[OK] 60000 images finished. Avg loss: 0.082198. Avg accuracy: 0.976417
+[OK] 10000 images finished. Avg loss: 0.096585. Avg accuracy: 0.971100
+[OK] Successfully saved model to: './model/MLP-epoch03-lr0.005000-t1787155881.bin'.
+Running epoch #4 ...
+[OK] 60000 images finished. Avg loss: 0.063053. Avg accuracy: 0.982167
+[OK] 10000 images finished. Avg loss: 0.093596. Avg accuracy: 0.972000
+[OK] Successfully saved model to: './model/MLP-epoch04-lr0.005000-t1787156016.bin'.
+Running epoch #5 ...
+[OK] 60000 images finished. Avg loss: 0.050338. Avg accuracy: 0.986083
+[OK] 10000 images finished. Avg loss: 0.088799. Avg accuracy: 0.973400
+[OK] Successfully saved model to: './model/MLP-epoch05-lr0.005000-t1787156171.bin'.
+Running epoch #6 ...
+[OK] 60000 images finished. Avg loss: 0.040765. Avg accuracy: 0.989083
+[OK] 10000 images finished. Avg loss: 0.087828. Avg accuracy: 0.973700
+[OK] Successfully saved model to: './model/MLP-epoch06-lr0.005000-t1787156334.bin'.
+Running epoch #7 ...
+[OK] 60000 images finished. Avg loss: 0.033030. Avg accuracy: 0.991567
+[OK] 10000 images finished. Avg loss: 0.086342. Avg accuracy: 0.974300
+[OK] Successfully saved model to: './model/MLP-epoch07-lr0.005000-t1787156510.bin'.
+Running epoch #8 ...
+[OK] 60000 images finished. Avg loss: 0.026674. Avg accuracy: 0.993667
+[OK] 10000 images finished. Avg loss: 0.083407. Avg accuracy: 0.975400
+[OK] Successfully saved model to: './model/MLP-epoch08-lr0.005000-t1787156672.bin'.
+
+```
 
 ### MNIST IDX reader
 

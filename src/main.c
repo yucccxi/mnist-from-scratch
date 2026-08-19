@@ -1,12 +1,15 @@
 #include <stdio.h>
 #include <assert.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <time.h>
 
 #include "compute_node.h"
 #include "mnist.h"
 #include "imath.h"
 #include "mlp.h"
 
-#define EPOCHES 10
+#define EPOCHES 8
 
 mnist_image_handle image_handle;
 mnist_label_handle label_handle;
@@ -142,11 +145,26 @@ void predict() {
 int main() {
     mlp = init_mlp();
 
-    for (int i = 0; i < EPOCHES; i++) {
-        printf("Running epoch #%d ...\n", i + 1);
-        train(60000);
-        predict();
-    }
+    if (
+        !load_model_from_file(mlp, 
+        "./model/MLP-epoch08-lr0.005000-t1787156672.bin")
+    ) return 1;
+
+    predict();
+
+    // for (int i = 0; i < EPOCHES; i++) {
+    //     printf("Running epoch #%d ...\n", i + 1);
+    //     train(60000);
+    //     predict();
+
+    //     char fname[128];
+    //     uint64_t tstp = (uint64_t)time(NULL);
+
+    //     const char *ffmt = "./model/MLP-epoch%02d-lr%f-t%lu.bin";
+    //     snprintf(fname, sizeof(fname), ffmt, i + 1, LEARNING_RATE, tstp);
+
+    //     if (!save_model_to_file(mlp, fname)) return 1;
+    // }
 
     free_mlp(mlp);
 

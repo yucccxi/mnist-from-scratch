@@ -35,4 +35,20 @@ void forward_propagate(MLP *mlp, float *input, uint8_t ctx);
 void back_propagate(MLP *mlp);
 void update_weights(MLP *mlp);
 
+/* BINARY LAYOUT:
+    
+    HEADERS:
+        8B - magic number
+        4B - version
+    
+    MODEL:
+        4B * HIDDEN_SIZE * INPUT_SIZE  - w1
+        4B * HIDDEN_SIZE               - b1
+        4B * OUTPUT_SIZE * HIDDEN_SIZE - w2
+        4B * OUTPUT_SIZE               - b2
+*/
+
+bool save_model_to_file(const MLP *mlp, const char *path);
+bool load_model_from_file(MLP *mlp, const char *path);
+
 #endif
