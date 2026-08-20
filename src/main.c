@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <time.h>
 
 #include "compute_node.h"
@@ -22,9 +23,13 @@ MLP *mlp;
 float input[INPUT_SIZE];
 
 char get_pixel(float gval) {
-    if (gval > 0.75f) return '#';
-    if (gval > 0.30f) return '.';
-    return ' ';
+    static const char ramp[] = " .:-=+*#%@";
+    int n = sizeof(ramp) - 2;
+
+    if (gval < 0.0f) gval = 0.0f;
+    if (gval > 1.0f) gval = 1.0f;
+
+    return ramp[(int)(gval * n)];
 }
 
 void get_img_input() {
@@ -44,13 +49,13 @@ void print_img() {
     }
 }
 
-void train(int cap) {
+void train_all() {
     mnist_load_images("./lib/train-images-idx3-ubyte", &image_handle);
     mnist_load_labels("./lib/train-labels-idx1-ubyte", &label_handle);
 
     assert(image_handle.nr_images == label_handle.nr_labels);
 
-    int tot = min(cap, (int)image_handle.nr_images);
+    int tot = (int)image_handle.nr_images;
 
     int total_count = 0;
     float total_loss = 0.0f;
@@ -94,7 +99,7 @@ void train(int cap) {
     fclose(label_handle.fp);
 }
 
-void predict() {
+void test_all() {
     mnist_load_images("./lib/t10k-images-idx3-ubyte", &image_handle);
     mnist_load_labels("./lib/t10k-labels-idx1-ubyte", &label_handle);
 
@@ -142,6 +147,22 @@ void predict() {
     fclose(label_handle.fp);
 }
 
+void generate_model() {
+    for (int i = 0; i < EPOCHES; i++) {
+        printf("Running epoch #%d ...\n", i + 1);
+        train_all();
+        test_all();
+
+        char fname[128];
+        uint64_t tstp = (uint64_t)time(NULL);
+
+        const char *ffmt = "./model/MLP-epoch%02d-lr%f-t%lu.bin";
+        snprintf(fname, sizeof(fname), ffmt, i + 1, LEARNING_RATE, tstp);
+
+        if (!save_model_to_file(mlp, fname)) return;
+    }
+}
+
 int main() {
     mlp = init_mlp();
 
@@ -150,21 +171,59 @@ int main() {
         "./model/MLP-epoch08-lr0.005000-t1787156672.bin")
     ) return 1;
 
-    predict();
+    mnist_load_images("./lib/t10k-images-idx3-ubyte", &image_handle);
+    mnist_load_labels("./lib/t10k-labels-idx1-ubyte", &label_handle);
 
-    // for (int i = 0; i < EPOCHES; i++) {
-    //     printf("Running epoch #%d ...\n", i + 1);
-    //     train(60000);
-    //     predict();
+    assert(image_handle.nr_images == label_handle.nr_labels);
 
-    //     char fname[128];
-    //     uint64_t tstp = (uint64_t)time(NULL);
+    float prob[OUTPUT_SIZE];
 
-    //     const char *ffmt = "./model/MLP-epoch%02d-lr%f-t%lu.bin";
-    //     snprintf(fname, sizeof(fname), ffmt, i + 1, LEARNING_RATE, tstp);
+    for (int i = 0; i < (int)image_handle.nr_images; i++) {
+        printf("\n");
 
-    //     if (!save_model_to_file(mlp, fname)) return 1;
-    // }
+        mnist_next_image(&image_handle, &image);
+        mnist_next_label(&label_handle, &label);
+
+        get_img_input();
+        forward_propagate(mlp, input, label.value);
+
+        print_img();
+
+        for (int j = 0; j < 10; j++) {
+            prob[j] = mlp->output[j]->data;
+        }
+
+        softmax(10, prob);
+
+        int argmax = -1;
+        float max_prob = 0;
+        for (int j = 0; j < 10; j++) {
+            if (prob[j] > max_prob) {
+                max_prob = prob[j];
+                argmax = j;
+            }
+        }
+
+        printf("+-------+------------+\n");
+        printf("| Class | Probability|\n");
+        printf("+-------+------------+\n");
+
+        for (int i = 0; i < 10; i++) {
+            printf("| %5d | %10.4f |\n", i, prob[i]);
+        }
+        printf("+-------+------------+\n");
+
+        bool right = (argmax == label.value);
+
+        printf("%d: True value: %d, %s!\n", i + 1, label.value, (right ? "RIGHT" : "WRONG"));
+        printf("Press enter to continue ...");
+
+        // if (!right) while (getchar() != '\n');
+        while (getchar() != '\n');
+    }
+
+    fclose(image_handle.fp);
+    fclose(label_handle.fp);
 
     free_mlp(mlp);
 
